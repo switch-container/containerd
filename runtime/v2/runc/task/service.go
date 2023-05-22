@@ -21,6 +21,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -203,6 +204,37 @@ func (s *service) Start(ctx context.Context, r *taskAPI.StartRequest) (*taskAPI.
 	}
 	s.eventSendMu.Unlock()
 	return &taskAPI.StartResponse{
+		Pid: uint32(p.Pid()),
+	}, nil
+}
+
+func (s *service) Switch(ctx context.Context, r *taskAPI.SwitchTaskRequest) (*taskAPI.SwitchTaskResponse, error) {
+	if b, err := json.MarshalIndent(r, "", "  "); err == nil {
+		logrus.Debugf("runtime.v2.runc.task receive switch request: %s", string(b))
+	} else {
+		logrus.Errorf("json marshal error: %+v", err)
+		return nil, err
+	}
+	container, err := s.getContainer(r.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// hold the send lock so that the start events are sent before any exit events in the error case
+	// s.eventSendMu.Lock()
+	p, err := container.Switch(ctx, r)
+	if err != nil {
+		// s.eventSendMu.Unlock()
+		return nil, errdefs.ToGRPC(err)
+	}
+
+	// TODO (huang-jl) send switchEvent
+	// s.send(&eventstypes.TaskStart{
+	// 	ContainerID: container.ID,
+	// 	Pid:         uint32(p.Pid()),
+	// })
+	// s.eventSendMu.Unlock()
+	return &taskAPI.SwitchTaskResponse{
 		Pid: uint32(p.Pid()),
 	}, nil
 }
@@ -537,6 +569,7 @@ func (s *service) checkProcesses(e runcC.Exit) {
 				continue
 			}
 
+			// check whether it is in switch state
 			if ip, ok := p.(*process.Init); ok {
 				// Ensure all children are killed
 				if runc.ShouldKillAllOnExit(s.context, container.Bundle) {
@@ -545,9 +578,19 @@ func (s *service) checkProcesses(e runcC.Exit) {
 							Error("failed to kill init's children")
 					}
 				}
+
+				// recheck for switching
+				if ip.IsSwitching() || p.Pid() != e.Pid {
+					continue
+				}
 			}
 
 			p.SetExited(e.Status)
+			logrus.WithFields(logrus.Fields{
+				"container id": container.ID,
+				"e.pid":        e.Pid,
+				"p.pid":        p.Pid(),
+			}).Debugf("checkProcesses send TaskExit")
 			s.sendL(&eventstypes.TaskExit{
 				ContainerID: container.ID,
 				ID:          p.ID(),

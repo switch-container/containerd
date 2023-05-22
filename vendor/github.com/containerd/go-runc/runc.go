@@ -32,6 +32,7 @@ import (
 	"time"
 
 	specs "github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/sirupsen/logrus"
 )
 
 // Format is the type of log formatting options avaliable
@@ -585,6 +586,85 @@ func (r *Runc) Restore(context context.Context, id, bundle string, opts *Restore
 	if opts != nil && opts.IO != nil {
 		opts.Set(cmd)
 	}
+	ec, err := Monitor.Start(cmd)
+	if err != nil {
+		return -1, err
+	}
+	if opts != nil && opts.IO != nil {
+		if c, ok := opts.IO.(StartCloser); ok {
+			if err := c.CloseAfterStart(); err != nil {
+				return -1, err
+			}
+		}
+	}
+	status, err := Monitor.Wait(cmd, ec)
+	if err == nil && status != 0 {
+		err = fmt.Errorf("%s did not terminate successfully: %w", cmd.Args[0], &ExitError{status})
+	}
+	return status, err
+}
+
+type SwitchOpts struct {
+	CheckpointOpts
+	IO
+
+	OriginalPid   int
+	Detach        bool
+	PidFile       string
+	NoSubreaper   bool
+	NoPivot       bool
+	ConsoleSocket ConsoleSocket
+}
+
+func (o *SwitchOpts) args() ([]string, error) {
+	out := o.CheckpointOpts.args()
+	out = append(out, "--original-pid", strconv.Itoa(o.OriginalPid))
+	if o.Detach {
+		out = append(out, "--detach")
+	}
+	if o.PidFile != "" {
+		abs, err := filepath.Abs(o.PidFile)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, "--pid-file", abs)
+	}
+	if o.ConsoleSocket != nil {
+		out = append(out, "--console-socket", o.ConsoleSocket.Path())
+	}
+	if o.NoPivot {
+		out = append(out, "--no-pivot")
+	}
+	if o.NoSubreaper {
+		out = append(out, "-no-subreaper")
+	}
+	return out, nil
+}
+
+// Restore restores a container with the provide id from an existing checkpoint
+func (r *Runc) Switch(context context.Context, id, bundle string, opts *SwitchOpts) (int, error) {
+	args := []string{"switch"}
+
+	// change runtime log path temp
+	defer func(prevLog string) {
+		r.Log = prevLog
+	}(r.Log)
+	r.Log = filepath.Join("/root", fmt.Sprintf("%s-runc-switch.json", id))
+	opts.WorkDir = filepath.Join("/root", fmt.Sprintf("%s-switch", id))
+
+	if opts != nil {
+		oargs, err := opts.args()
+		if err != nil {
+			return -1, err
+		}
+		args = append(args, oargs...)
+	}
+	args = append(args, "--bundle", bundle)
+	cmd := r.command(context, append(args, id)...)
+	if opts != nil && opts.IO != nil {
+		opts.Set(cmd)
+	}
+	logrus.Debugf("Runtime runc switch cmd: %+v", cmd)
 	ec, err := Monitor.Start(cmd)
 	if err != nil {
 		return -1, err

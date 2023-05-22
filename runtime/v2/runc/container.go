@@ -22,6 +22,7 @@ package runc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -381,6 +382,24 @@ func (c *Container) Start(ctx context.Context, r *task.StartRequest) (process.Pr
 	return p, nil
 }
 
+func (c *Container) Switch(ctx context.Context, r *task.SwitchTaskRequest) (process.Process, error) {
+	config := &process.SwitchConfig{
+		ID:         r.ID,
+		Terminal:   r.Terminal,
+		Stdin:      r.Stdin,
+		Stdout:     r.Stdout,
+		Stderr:     r.Stderr,
+		Checkpoint: r.Checkpoint,
+		Options:    r.Options,
+	}
+	init, ok := c.process.(*process.Init)
+	if !ok {
+		return nil, errors.New("runtime.v2.runc.container Container.process is not Init")
+	}
+	err := init.Switch(ctx, config)
+	return init, err
+}
+
 // Delete the container or a process by id
 func (c *Container) Delete(ctx context.Context, r *task.DeleteRequest) (process.Process, error) {
 	p, err := c.Process(r.ExecID)
@@ -461,6 +480,8 @@ func (c *Container) CloseIO(ctx context.Context, r *task.CloseIORequest) error {
 
 // Checkpoint the container
 func (c *Container) Checkpoint(ctx context.Context, r *task.CheckpointTaskRequest) error {
+
+	logrus.Debugf("runtime.v2.runc.container Checkpoint: receive request %+v ", r)
 	p, err := c.Process("")
 	if err != nil {
 		return err
@@ -473,6 +494,8 @@ func (c *Container) Checkpoint(ctx context.Context, r *task.CheckpointTaskReques
 		}
 		opts = *v.(*options.CheckpointOptions)
 	}
+
+	logrus.Debugf("runtime.v2.runc.container Checkpoint: checkpoint with opts %+v ", opts)
 	return p.(*process.Init).Checkpoint(ctx, &process.CheckpointConfig{
 		Path:                     r.Path,
 		Exit:                     opts.Exit,

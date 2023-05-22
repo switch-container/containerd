@@ -36,6 +36,9 @@ service Tasks {
 	// Start a process.
 	rpc Start(StartRequest) returns (StartResponse);
 
+	// Switch a task from checkpoint.
+	rpc Switch(SwitchTaskRequest) returns (SwitchTaskResponse);
+
 	// Delete a task and on disk state.
 	rpc Delete(DeleteTaskRequest) returns (DeleteResponse);
 
@@ -93,6 +96,33 @@ message CreateTaskRequest {
 }
 
 message CreateTaskResponse {
+	string container_id = 1;
+	uint32 pid = 2;
+}
+
+message SwitchTaskRequest {
+	string container_id = 1;
+
+	// RootFS provides the pre-chroot mounts to perform in the shim before
+	// executing the container task.
+	//
+	// These are for mounts that cannot be performed in the user namespace.
+	// Typically, these mounts should be resolved from snapshots specified on
+	// the container object.
+	repeated containerd.types.Mount rootfs = 3;
+
+	string stdin = 4;
+	string stdout = 5;
+	string stderr = 6;
+	bool terminal = 7;
+
+
+	google.protobuf.Any options = 8;
+
+	string runtime_path = 9;
+}
+
+message SwitchTaskResponse {
 	string container_id = 1;
 	uint32 pid = 2;
 }

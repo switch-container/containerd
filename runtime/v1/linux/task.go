@@ -155,6 +155,10 @@ func (t *Task) Start(ctx context.Context) error {
 	return nil
 }
 
+func (t *Task) Switch(ctx context.Context, checkpointPath string) error {
+	return errdefs.ErrNotImplemented
+}
+
 // State returns runtime information for the task
 func (t *Task) State(ctx context.Context) (runtime.State, error) {
 	response, err := t.shim.State(ctx, &shim.StateRequest{

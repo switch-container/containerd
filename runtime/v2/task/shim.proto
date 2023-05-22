@@ -49,6 +49,8 @@ service Task {
 	rpc Stats(StatsRequest) returns (StatsResponse);
 	rpc Connect(ConnectRequest) returns (ConnectResponse);
 	rpc Shutdown(ShutdownRequest) returns (google.protobuf.Empty);
+	
+	rpc Switch(SwitchTaskRequest) returns (SwitchTaskResponse);
 }
 
 message CreateTaskRequest {
@@ -65,6 +67,20 @@ message CreateTaskRequest {
 }
 
 message CreateTaskResponse {
+	uint32 pid = 1;
+}
+
+message SwitchTaskRequest {
+	string id = 1;
+	bool terminal = 2;
+	string stdin = 3;
+	string stdout = 4;
+	string stderr = 5;
+	string checkpoint = 6;
+	google.protobuf.Any options = 7;
+}
+
+message SwitchTaskResponse {
 	uint32 pid = 1;
 }
 

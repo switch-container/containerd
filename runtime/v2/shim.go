@@ -381,6 +381,17 @@ func (s *shimTask) Start(ctx context.Context) error {
 	return nil
 }
 
+func (s *shimTask) Switch(ctx context.Context, checkpointPath string) error {
+	_, err := s.task.Switch(ctx, &task.SwitchTaskRequest{
+		ID:         s.ID(),
+		Checkpoint: checkpointPath,
+	})
+	if err != nil {
+		return errdefs.FromGRPC(err)
+	}
+	return nil
+}
+
 func (s *shimTask) Kill(ctx context.Context, signal uint32, all bool) error {
 	if _, err := s.task.Kill(ctx, &task.KillRequest{
 		ID:     s.ID(),

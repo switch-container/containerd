@@ -69,6 +69,10 @@ func (s *service) Create(ctx context.Context, r *api.CreateTaskRequest) (*api.Cr
 	return s.local.Create(ctx, r)
 }
 
+func (s *service) Switch(ctx context.Context, r *api.SwitchTaskRequest) (*api.SwitchTaskResponse, error) {
+	return s.local.Switch(ctx, r)
+}
+
 func (s *service) Start(ctx context.Context, r *api.StartRequest) (*api.StartResponse, error) {
 	return s.local.Start(ctx, r)
 }

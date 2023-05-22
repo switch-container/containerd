@@ -79,6 +79,8 @@ type Container interface {
 	Update(context.Context, ...UpdateContainerOpts) error
 	// Checkpoint creates a checkpoint image of the current container
 	Checkpoint(context.Context, string, ...CheckpointOpts) (Image, error)
+	// switch a running task from a checkpoint
+	SwitchTask(ctx context.Context, ioCreate cio.Creator, opts ...SwitchTaskOpts) (Task, error)
 }
 
 func containerFromRecord(client *Client, c containers.Container) *container {
@@ -299,6 +301,108 @@ func (c *container) NewTask(ctx context.Context, ioCreate cio.Creator, opts ...N
 	if err != nil {
 		return nil, errdefs.FromGRPC(err)
 	}
+	t.pid = response.Pid
+	return t, nil
+}
+
+// called from docker/moby libcontainerd
+func (c *container) SwitchTask(ctx context.Context, ioCreate cio.Creator, opts ...SwitchTaskOpts) (_ Task, err error) {
+	i, err := ioCreate(c.id)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil && i != nil {
+			i.Cancel()
+			i.Close()
+		}
+	}()
+	cfg := i.Config()
+	request := &tasks.SwitchTaskRequest{
+		ContainerID: c.id,
+		Terminal:    cfg.Terminal,
+		Stdin:       cfg.Stdin,
+		Stdout:      cfg.Stdout,
+		Stderr:      cfg.Stderr,
+	}
+	r, err := c.get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.SnapshotKey != "" {
+		if r.Snapshotter == "" {
+			return nil, fmt.Errorf("unable to resolve rootfs mounts without snapshotter on container: %w", errdefs.ErrInvalidArgument)
+		}
+
+		// get the rootfs from the snapshotter and add it to the request
+		s, err := c.client.getSnapshotter(ctx, r.Snapshotter)
+		if err != nil {
+			return nil, err
+		}
+		mounts, err := s.Mounts(ctx, r.SnapshotKey)
+		if err != nil {
+			return nil, err
+		}
+		spec, err := c.Spec(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range mounts {
+			if spec.Linux != nil && spec.Linux.MountLabel != "" {
+				context := label.FormatMountLabel("", spec.Linux.MountLabel)
+				if context != "" {
+					m.Options = append(m.Options, context)
+				}
+			}
+			request.Rootfs = append(request.Rootfs, &types.Mount{
+				Type:    m.Type,
+				Source:  m.Source,
+				Options: m.Options,
+			})
+		}
+	}
+
+	info := TaskInfo{
+		runtime: r.Runtime.Name,
+	}
+
+	for _, o := range opts {
+		if err := o(ctx, c.client, &info); err != nil {
+			return nil, err
+		}
+	}
+
+	if info.RootFS != nil {
+		for _, m := range info.RootFS {
+			request.Rootfs = append(request.Rootfs, &types.Mount{
+				Type:    m.Type,
+				Source:  m.Source,
+				Options: m.Options,
+			})
+		}
+	}
+
+	if info.Options != nil {
+		any, err := typeurl.MarshalAny(info.Options)
+		if err != nil {
+			return nil, err
+		}
+		request.Options = any
+	}
+
+	t := &task{
+		client: c.client,
+		io:     i,
+		id:     c.id,
+		c:      c,
+	}
+
+	response, err := c.client.TaskService().Switch(ctx, request)
+
+	if err != nil {
+		return nil, errdefs.FromGRPC(err)
+	}
+
 	t.pid = response.Pid
 	return t, nil
 }

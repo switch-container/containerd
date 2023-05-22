@@ -83,6 +83,8 @@ type Task interface {
 	Process(ctx context.Context, id string) (ExecProcess, error)
 	// Stats returns runtime specific metrics for a task
 	Stats(ctx context.Context) (*types.Any, error)
+	// Switch a Task from checkpoint
+	Switch(ctx context.Context, checkpointPath string) error
 }
 
 // ExecOpts provides additional options for additional processes running in a task

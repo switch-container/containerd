@@ -236,3 +236,5 @@ func WithAnnotations(annotations map[string]string) UpdateTaskOpts {
 		return nil
 	}
 }
+
+type SwitchTaskOpts func(context.Context, *Client, *TaskInfo) error

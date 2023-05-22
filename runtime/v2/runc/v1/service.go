@@ -343,6 +343,10 @@ func (s *service) Start(ctx context.Context, r *taskAPI.StartRequest) (*taskAPI.
 	}, nil
 }
 
+func (s *service) Switch(ctx context.Context, req *taskAPI.SwitchTaskRequest) (*taskAPI.SwitchTaskResponse, error) {
+	return nil, errdefs.ErrNotImplemented
+}
+
 // Delete the initial process and container
 func (s *service) Delete(ctx context.Context, r *taskAPI.DeleteRequest) (*taskAPI.DeleteResponse, error) {
 	container, err := s.getContainer()

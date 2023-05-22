@@ -43,6 +43,16 @@ type CreateConfig struct {
 	Options          *google_protobuf.Any
 }
 
+type SwitchConfig struct {
+	ID         string
+	Terminal   bool
+	Stdin      string
+	Stdout     string
+	Stderr     string
+	Checkpoint string
+	Options    *google_protobuf.Any
+}
+
 // ExecConfig holds exec creation configuration
 type ExecConfig struct {
 	ID       string

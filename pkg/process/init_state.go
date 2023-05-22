@@ -414,3 +414,63 @@ func (s *stoppedState) Exec(ctx context.Context, path string, r *ExecConfig) (Pr
 func (s *stoppedState) Status(ctx context.Context) (string, error) {
 	return "stopped", nil
 }
+
+// // This is a transient state (i.e. will not kept long).
+// // Main purpose is to prevent reaper kill switched process accidentally
+// type switchingState struct {
+// 	p *Init
+// }
+
+// func (s *switchingState) transition(name string) error {
+// 	switch name {
+// 	case "stopped":
+// 		s.p.initState = &stoppedState{p: s.p}
+// 	default:
+// 		return fmt.Errorf("invalid state transition %q to %q", stateName(s), name)
+// 	}
+// 	return nil
+// }
+
+// func (s *switchingState) Pause(ctx context.Context) error {
+// 	return errors.New("cannot resume a switching process")
+// }
+
+// func (s *switchingState) Resume(ctx context.Context) error {
+// 	return errors.New("cannot resume a switching process")
+// }
+
+// func (s *switchingState) Update(ctx context.Context, r *google_protobuf.Any) error {
+// 	return errors.New("cannot update a switching process")
+// }
+
+// func (s *switchingState) Checkpoint(ctx context.Context, r *CheckpointConfig) error {
+// 	return errors.New("cannot checkpoint a switching process")
+// }
+
+// func (s *switchingState) Start(ctx context.Context) error {
+// 	return errors.New("cannot start a switching process")
+// }
+
+// func (s *switchingState) Delete(ctx context.Context) error {
+// 	return errors.New("cannot delete a switching process")
+// }
+
+// func (s *switchingState) Kill(ctx context.Context, sig uint32, all bool) error {
+// 	return s.p.kill(ctx, sig, all)
+// }
+
+// func (s *switchingState) SetExited(status int) {
+// 	s.p.setExited(status)
+
+// 	if err := s.transition("stopped"); err != nil {
+// 		panic(err)
+// 	}
+// }
+
+// func (s *switchingState) Exec(ctx context.Context, path string, r *ExecConfig) (Process, error) {
+// 	return nil, errors.New("cannot exec in a switching process")
+// }
+
+// func (s *switchingState) Status(ctx context.Context) (string, error) {
+// 	return "switching", nil
+// }

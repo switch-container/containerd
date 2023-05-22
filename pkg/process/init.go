@@ -64,6 +64,7 @@ type Init struct {
 	runtime  *runc.Runc
 	// pausing preserves the pausing state.
 	pausing      *atomicBool
+	switching    *atomicBool
 	status       int
 	exited       time.Time
 	pid          int
@@ -91,6 +92,7 @@ func NewRunc(root, path, namespace, runtime, criu string, systemd bool) *runc.Ru
 		Root:          filepath.Join(root, namespace),
 		Criu:          criu,
 		SystemdCgroup: systemd,
+		Debug:         true,
 	}
 }
 
@@ -100,6 +102,7 @@ func New(id string, runtime *runc.Runc, stdio stdio.Stdio) *Init {
 		id:        id,
 		runtime:   runtime,
 		pausing:   new(atomicBool),
+		switching: new(atomicBool),
 		stdio:     stdio,
 		status:    0,
 		waitBlock: make(chan struct{}),
@@ -173,6 +176,100 @@ func (p *Init) Create(ctx context.Context, r *CreateConfig) error {
 	}
 	p.pid = pid
 	return nil
+}
+
+func (p *Init) Switch(ctx context.Context, r *SwitchConfig) error {
+	var (
+		err     error
+		socket  *runc.Socket
+		pio     *processIO
+		pidFile = newPidFile(p.Bundle)
+	)
+
+	// here we fetch the lock of Init process
+	// so that shim monitor will not kill newly switch process accidentally
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.switching.set(true)
+	defer p.switching.set(false)
+
+	opts := &runc.SwitchOpts{
+		CheckpointOpts: runc.CheckpointOpts{
+			ImagePath: r.Checkpoint,
+			WorkDir:   p.CriuWorkPath,
+		},
+		OriginalPid: p.Pid(),
+		PidFile:     pidFile.Path(),
+		NoPivot:     p.NoPivotRoot,
+		Detach:      true,
+		NoSubreaper: true,
+	}
+	// update a new stdio
+	p.stdio = stdio.Stdio{
+		Terminal: r.Terminal,
+		Stdin:    r.Stdin,
+		Stdout:   r.Stdout,
+		Stderr:   r.Stderr,
+	}
+
+	if r.Terminal {
+		if socket, err = runc.NewTempConsoleSocket(); err != nil {
+			return fmt.Errorf("failed to create OCI runtime console socket: %w", err)
+		}
+		defer socket.Close()
+		opts.ConsoleSocket = socket
+	} else {
+		if pio, err = createIO(ctx, p.id, p.IoUID, p.IoGID, p.stdio); err != nil {
+			return fmt.Errorf("failed to create init process I/O: %w", err)
+		}
+		p.io = pio
+	}
+	if p.io != nil {
+		opts.IO = p.io.IO()
+	}
+
+	log.G(ctx).Debugf("runtime start Switch %s %s opts: %+v", p.id, p.Bundle, opts)
+	if _, err := p.runtime.Switch(ctx, p.id, p.Bundle, opts); err != nil {
+		return p.runtimeError(err, "OCI runtime restore failed")
+	}
+
+	if r.Stdin != "" {
+		if err := p.openStdin(r.Stdin); err != nil {
+			return err
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	if socket != nil {
+		console, err := socket.ReceiveMaster()
+		if err != nil {
+			return fmt.Errorf("failed to retrieve console master: %w", err)
+		}
+		console, err = p.Platform.CopyConsole(ctx, console, p.id, r.Stdin, r.Stdout, r.Stderr, &p.wg)
+		if err != nil {
+			return fmt.Errorf("failed to start console copy: %w", err)
+		}
+		p.console = console
+	} else {
+		if err := p.io.Copy(ctx, &p.wg); err != nil {
+			return fmt.Errorf("failed to start io pipe copy: %w", err)
+		}
+	}
+	pid, err := pidFile.Read()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve OCI runtime container pid: %w", err)
+	}
+	log.G(ctx).WithField("newpid", pid).Debugf("runtime switch finish")
+
+	p.pid = pid
+	// update to new state
+	p.initState = &runningState{p: p}
+	return nil
+}
+
+func (p *Init) IsSwitching() bool {
+	return p.switching.get()
 }
 
 func (p *Init) openStdin(path string) error {
@@ -420,6 +517,7 @@ func (p *Init) Checkpoint(ctx context.Context, r *CheckpointConfig) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// pkg.process.init_state Checkpoint
 	return p.initState.Checkpoint(ctx, r)
 }
 

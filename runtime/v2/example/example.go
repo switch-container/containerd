@@ -137,3 +137,7 @@ func (s *service) Update(ctx context.Context, r *taskAPI.UpdateTaskRequest) (*pt
 func (s *service) Wait(ctx context.Context, r *taskAPI.WaitRequest) (*taskAPI.WaitResponse, error) {
 	return nil, errdefs.ErrNotImplemented
 }
+
+func (s *service) Switch(ctx context.Context, req *taskAPI.SwitchTaskRequest) (*taskAPI.SwitchTaskResponse, error) {
+	return nil, errdefs.ErrNotImplemented
+}

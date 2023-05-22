@@ -19,6 +19,7 @@ package tasks
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -238,6 +239,57 @@ func (l *local) Create(ctx context.Context, r *api.CreateTaskRequest, _ ...grpc.
 		return nil, fmt.Errorf("failed to get task pid: %w", err)
 	}
 	return &api.CreateTaskResponse{
+		ContainerID: r.ContainerID,
+		Pid:         pid,
+	}, nil
+}
+
+func (l *local) Switch(ctx context.Context, r *api.SwitchTaskRequest, _ ...grpc.CallOption) (*api.SwitchTaskResponse, error) {
+	logEntry := log.G(ctx).WithField("container_id", r.ContainerID)
+	container, err := l.getContainer(ctx, r.ContainerID)
+	if err != nil {
+		return nil, errdefs.ToGRPC(err)
+	}
+	t, err := l.getTaskFromContainer(ctx, container)
+	checkpointPath, err := getRestorePath(container.Runtime.Name, r.Options)
+	if err != nil {
+		return nil, err
+	}
+	if checkpointPath == "" {
+		return nil, errors.New("Checkpoint is empty")
+	}
+	logEntry = logEntry.WithField("checkpoint_path", checkpointPath)
+	// if r.RuntimePath != "" {
+	// 	opts.Runtime = r.RuntimePath
+	// }
+	// for _, m := range r.Rootfs {
+	// 	opts.Rootfs = append(opts.Rootfs, mount.Mount{
+	// 		Type:    m.Type,
+	// 		Source:  m.Source,
+	// 		Options: m.Options,
+	// 	})
+	// }
+	if strings.HasPrefix(container.Runtime.Name, "io.containerd.runtime.v1.") {
+		log.G(ctx).Warn("runtime v1 is deprecated since containerd v1.4, consider using runtime v2")
+	} else if container.Runtime.Name == plugin.RuntimeRuncV1 {
+		log.G(ctx).Warnf("%q is deprecated since containerd v1.4, consider using %q", plugin.RuntimeRuncV1, plugin.RuntimeRuncV2)
+	}
+
+	logEntry.Debugf("Contianerd local receive switch request")
+
+	err = t.Switch(ctx, checkpointPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to Switch from %s: %w", checkpointPath, err)
+	}
+
+	pid, err := t.PID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task pid: %w", err)
+	}
+
+	log.G(ctx).WithField("pid", pid).Debugf("Switch finish for container %s", r.ContainerID)
+
+	return &api.SwitchTaskResponse{
 		ContainerID: r.ContainerID,
 		Pid:         pid,
 	}, nil
@@ -536,6 +588,7 @@ func (l *local) CloseIO(ctx context.Context, r *api.CloseIORequest, _ ...grpc.Ca
 }
 
 func (l *local) Checkpoint(ctx context.Context, r *api.CheckpointTaskRequest, _ ...grpc.CallOption) (*api.CheckpointTaskResponse, error) {
+	log.G(ctx).Debugf("Containerd services.tasks.local local receive Checkpoint request")
 	container, err := l.getContainer(ctx, r.ContainerID)
 	if err != nil {
 		return nil, err
