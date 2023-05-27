@@ -51,6 +51,8 @@ service Task {
 	rpc Shutdown(ShutdownRequest) returns (google.protobuf.Empty);
 	
 	rpc Switch(SwitchTaskRequest) returns (SwitchTaskResponse);
+
+	rpc TakeOver(TakeOverRequest) returns (TakeOverResponse);
 }
 
 message CreateTaskRequest {
@@ -81,6 +83,15 @@ message SwitchTaskRequest {
 }
 
 message SwitchTaskResponse {
+	uint32 pid = 1;
+}
+
+message TakeOverRequest {
+	string id = 1;
+	int64 new_pid = 2;
+}
+
+message TakeOverResponse {
 	uint32 pid = 1;
 }
 

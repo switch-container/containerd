@@ -85,6 +85,8 @@ type Task interface {
 	Stats(ctx context.Context) (*types.Any, error)
 	// Switch a Task from checkpoint
 	Switch(ctx context.Context, checkpointPath string) error
+
+	TakeOver(ctx context.Context, newPid int64) (int, error)
 }
 
 // ExecOpts provides additional options for additional processes running in a task

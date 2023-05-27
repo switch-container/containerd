@@ -400,6 +400,15 @@ func (c *Container) Switch(ctx context.Context, r *task.SwitchTaskRequest) (proc
 	return init, err
 }
 
+func (c *Container) TakeOver(ctx context.Context, newPid int64) (int, error) {
+	init, ok := c.process.(*process.Init)
+	if !ok {
+		return -1, errors.New("runtime.v2.runc.container Container.process is not Init")
+	}
+	pid := init.TakeOver(int(newPid))
+	return pid, nil
+}
+
 // Delete the container or a process by id
 func (c *Container) Delete(ctx context.Context, r *task.DeleteRequest) (process.Process, error) {
 	p, err := c.Process(r.ExecID)

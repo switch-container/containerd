@@ -392,6 +392,14 @@ func (s *shimTask) Switch(ctx context.Context, checkpointPath string) error {
 	return nil
 }
 
+func (s *shimTask) TakeOver(ctx context.Context, newPid int64) (int, error) {
+	response, err := s.task.TakeOver(ctx, &task.TakeOverRequest{ID: s.ID(), NewPid: newPid})
+	if err != nil {
+		return -1, errdefs.FromGRPC(err)
+	}
+	return int(response.Pid), nil
+}
+
 func (s *shimTask) Kill(ctx context.Context, signal uint32, all bool) error {
 	if _, err := s.task.Kill(ctx, &task.KillRequest{
 		ID:     s.ID(),

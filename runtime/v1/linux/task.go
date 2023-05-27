@@ -159,6 +159,10 @@ func (t *Task) Switch(ctx context.Context, checkpointPath string) error {
 	return errdefs.ErrNotImplemented
 }
 
+func (t *Task) TakeOver(ctx context.Context, newPid int64) (int, error) {
+	return -1, errdefs.ErrNotImplemented
+}
+
 // State returns runtime information for the task
 func (t *Task) State(ctx context.Context) (runtime.State, error) {
 	response, err := t.shim.State(ctx, &shim.StateRequest{

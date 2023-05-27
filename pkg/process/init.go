@@ -272,6 +272,22 @@ func (p *Init) IsSwitching() bool {
 	return p.switching.get()
 }
 
+// return pid of current init
+func (p *Init) TakeOver(newPid int) int {
+	if newPid > 0 {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		// we are finishing takeover
+		p.pid = newPid
+		p.switching.set(false)
+	} else {
+		// we are starting takeover
+		// set switching to prevent containerd kill our container
+		p.switching.set(true)
+	}
+	return p.pid
+}
+
 func (p *Init) openStdin(path string) error {
 	sc, err := fifo.OpenFifo(context.Background(), path, unix.O_WRONLY|unix.O_NONBLOCK, 0)
 	if err != nil {

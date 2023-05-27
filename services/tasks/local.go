@@ -245,6 +245,7 @@ func (l *local) Create(ctx context.Context, r *api.CreateTaskRequest, _ ...grpc.
 }
 
 func (l *local) Switch(ctx context.Context, r *api.SwitchTaskRequest, _ ...grpc.CallOption) (*api.SwitchTaskResponse, error) {
+	start := time.Now()
 	logEntry := log.G(ctx).WithField("container_id", r.ContainerID)
 	container, err := l.getContainer(ctx, r.ContainerID)
 	if err != nil {
@@ -287,12 +288,28 @@ func (l *local) Switch(ctx context.Context, r *api.SwitchTaskRequest, _ ...grpc.
 		return nil, fmt.Errorf("failed to get task pid: %w", err)
 	}
 
-	log.G(ctx).WithField("pid", pid).Debugf("Switch finish for container %s", r.ContainerID)
+	log.G(ctx).WithField("pid", pid).WithField("elapsed", time.Since(start)).Debugf("Switch finish for container %s", r.ContainerID)
 
 	return &api.SwitchTaskResponse{
 		ContainerID: r.ContainerID,
 		Pid:         pid,
 	}, nil
+}
+
+func (l *local) TakeOver(ctx context.Context, r *api.TakeOverTaskRequest, _ ...grpc.CallOption) (*api.TakeOverTaskResponse, error) {
+	container, err := l.getContainer(ctx, r.ContainerID)
+	if err != nil {
+		return nil, errdefs.ToGRPC(err)
+	}
+	t, err := l.getTaskFromContainer(ctx, container)
+	pid, err := t.TakeOver(ctx, r.NewPid)
+	if err != nil {
+		return nil, err
+	}
+	return &api.TakeOverTaskResponse{
+		Pid: uint32(pid),
+	}, nil
+
 }
 
 func (l *local) Start(ctx context.Context, r *api.StartRequest, _ ...grpc.CallOption) (*api.StartResponse, error) {

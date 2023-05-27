@@ -81,6 +81,8 @@ type Container interface {
 	Checkpoint(context.Context, string, ...CheckpointOpts) (Image, error)
 	// switch a running task from a checkpoint
 	SwitchTask(ctx context.Context, ioCreate cio.Creator, opts ...SwitchTaskOpts) (Task, error)
+	// take over control of a container and return its main pid
+	TakeOver(ctx context.Context, newPid int) (int, error)
 }
 
 func containerFromRecord(client *Client, c containers.Container) *container {
@@ -405,6 +407,18 @@ func (c *container) SwitchTask(ctx context.Context, ioCreate cio.Creator, opts .
 
 	t.pid = response.Pid
 	return t, nil
+}
+
+func (c *container) TakeOver(ctx context.Context, newPid int) (int, error) {
+	request := &tasks.TakeOverTaskRequest{
+		ContainerID: c.ID(),
+		NewPid:      int64(newPid),
+	}
+	response, err := c.client.TaskService().TakeOver(ctx, request)
+	if err != nil {
+		return -1, errdefs.FromGRPC(err)
+	}
+	return int(response.Pid), nil
 }
 
 func (c *container) Update(ctx context.Context, opts ...UpdateContainerOpts) error {

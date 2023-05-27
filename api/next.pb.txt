@@ -3924,6 +3924,33 @@ file {
     }
   }
   message_type {
+    name: "TakeOverTaskRequest"
+    field {
+      name: "container_id"
+      number: 1
+      label: LABEL_OPTIONAL
+      type: TYPE_STRING
+      json_name: "containerId"
+    }
+    field {
+      name: "new_pid"
+      number: 2
+      label: LABEL_OPTIONAL
+      type: TYPE_INT64
+      json_name: "newPid"
+    }
+  }
+  message_type {
+    name: "TakeOverTaskResponse"
+    field {
+      name: "pid"
+      number: 1
+      label: LABEL_OPTIONAL
+      type: TYPE_UINT32
+      json_name: "pid"
+    }
+  }
+  message_type {
     name: "StartRequest"
     field {
       name: "container_id"
@@ -4407,6 +4434,11 @@ file {
       name: "Switch"
       input_type: ".containerd.services.tasks.v1.SwitchTaskRequest"
       output_type: ".containerd.services.tasks.v1.SwitchTaskResponse"
+    }
+    method {
+      name: "TakeOver"
+      input_type: ".containerd.services.tasks.v1.TakeOverTaskRequest"
+      output_type: ".containerd.services.tasks.v1.TakeOverTaskResponse"
     }
     method {
       name: "Delete"

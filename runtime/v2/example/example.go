@@ -141,3 +141,7 @@ func (s *service) Wait(ctx context.Context, r *taskAPI.WaitRequest) (*taskAPI.Wa
 func (s *service) Switch(ctx context.Context, req *taskAPI.SwitchTaskRequest) (*taskAPI.SwitchTaskResponse, error) {
 	return nil, errdefs.ErrNotImplemented
 }
+
+func (s *service) TakeOver(ctx context.Context, req *taskAPI.TakeOverRequest) (*taskAPI.TakeOverResponse, error) {
+	return nil, errdefs.ErrNotImplemented
+}
