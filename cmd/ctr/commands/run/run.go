@@ -17,12 +17,12 @@
 package run
 
 import (
-	"context"
 	gocontext "context"
 	"encoding/csv"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/containerd/console"
 	"github.com/containerd/containerd"
@@ -31,7 +31,7 @@ import (
 	"github.com/containerd/containerd/cmd/ctr/commands/tasks"
 	"github.com/containerd/containerd/containers"
 	clabels "github.com/containerd/containerd/labels"
-	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/oci"
 	gocni "github.com/containerd/go-cni"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
@@ -162,6 +162,7 @@ var Command = cli.Command{
 		if rm && detach {
 			return errors.New("flags --detach and --rm cannot be specified together")
 		}
+		start := time.Now()
 
 		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
@@ -201,7 +202,7 @@ var Command = cli.Command{
 		if !detach {
 			defer func() {
 				if enableCNI {
-					if err := network.Remove(ctx, fullID(ctx, container), ""); err != nil {
+					if err := network.Remove(ctx, commands.FullID(ctx, container), ""); err != nil {
 						logrus.WithError(err).Error("network review")
 					}
 				}
@@ -223,13 +224,16 @@ var Command = cli.Command{
 				return err
 			}
 
-			if _, err := network.Setup(ctx, fullID(ctx, container), netNsPath); err != nil {
+			if _, err := network.Setup(ctx, commands.FullID(ctx, container), netNsPath); err != nil {
 				return err
 			}
 		}
 		if err := task.Start(ctx); err != nil {
 			return err
 		}
+
+		latency := float64(time.Since(start).Microseconds()) / 1000.0
+		log.G(ctx).Infof("run latency: %.3fms", latency)
 		if detach {
 			return nil
 		}
@@ -254,15 +258,6 @@ var Command = cli.Command{
 		}
 		return nil
 	},
-}
-
-func fullID(ctx context.Context, c containerd.Container) string {
-	id := c.ID()
-	ns, ok := namespaces.Namespace(ctx)
-	if !ok {
-		return id
-	}
-	return fmt.Sprintf("%s-%s", ns, id)
 }
 
 // buildLabel builds the labels from command line labels and the image labels

@@ -31,6 +31,7 @@ import (
 	eventstypes "github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/api/types/task"
 	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/metrics"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/pkg/oom"
 	oomv1 "github.com/containerd/containerd/pkg/oom/v1"
@@ -120,7 +121,14 @@ func (s *service) Create(ctx context.Context, r *taskAPI.CreateTaskRequest) (_ *
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// [run: 120ms] [restore: 230us]
+	if err := metrics.Timer.StartTimer("runc.NewContainer"); err != nil {
+		return nil, err
+	}
 	container, err := runc.NewContainer(ctx, s.platform, r)
+	if err := metrics.Timer.FinishTimer("runc.NewContainer"); err != nil {
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +161,7 @@ func (s *service) RegisterTTRPC(server *ttrpc.Server) error {
 
 // Start a process
 func (s *service) Start(ctx context.Context, r *taskAPI.StartRequest) (*taskAPI.StartResponse, error) {
+	defer metrics.Timer.Report()
 	container, err := s.getContainer(r.ID)
 	if err != nil {
 		return nil, err
@@ -160,7 +169,13 @@ func (s *service) Start(ctx context.Context, r *taskAPI.StartRequest) (*taskAPI.
 
 	// hold the send lock so that the start events are sent before any exit events in the error case
 	s.eventSendMu.Lock()
+	if err := metrics.Timer.StartTimer("container.Start"); err != nil {
+		return nil, err
+	}
 	p, err := container.Start(ctx, r)
+	if err := metrics.Timer.FinishTimer("container.Start"); err != nil {
+		return nil, err
+	}
 	if err != nil {
 		s.eventSendMu.Unlock()
 		return nil, errdefs.ToGRPC(err)

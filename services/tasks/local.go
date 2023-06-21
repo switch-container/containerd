@@ -39,6 +39,7 @@ import (
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/metadata"
+	"github.com/containerd/containerd/metrics"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/pkg/timeout"
 	"github.com/containerd/containerd/plugin"
@@ -49,6 +50,7 @@ import (
 	"github.com/containerd/typeurl"
 	ptypes "github.com/gogo/protobuf/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -155,6 +157,13 @@ type local struct {
 }
 
 func (l *local) Create(ctx context.Context, r *api.CreateTaskRequest, _ ...grpc.CallOption) (*api.CreateTaskResponse, error) {
+	metrics.Timer.Clean()
+	if err := metrics.Timer.StartTimer("local.Create"); err != nil {
+		return nil, err
+	}
+	defer func() {
+		metrics.Timer.FinishTimer("local.Create")
+	}()
 	container, err := l.getContainer(ctx, r.ContainerID)
 	if err != nil {
 		return nil, errdefs.ToGRPC(err)
@@ -186,6 +195,10 @@ func (l *local) Create(ctx context.Context, r *api.CreateTaskRequest, _ ...grpc.
 		if err != nil {
 			return nil, err
 		}
+	}
+	if checkpointPath == "" && r.CheckpointPath != "" {
+		checkpointPath = r.CheckpointPath
+		logrus.Infof("CRIU apply directly from %s", checkpointPath)
 	}
 	opts := runtime.CreateOpts{
 		Spec: container.Spec,
@@ -226,7 +239,13 @@ func (l *local) Create(ctx context.Context, r *api.CreateTaskRequest, _ ...grpc.
 	if err == nil {
 		return nil, errdefs.ToGRPC(fmt.Errorf("task %s: %w", r.ContainerID, errdefs.ErrAlreadyExists))
 	}
-	c, err := rtime.Create(ctx, r.ContainerID, opts)
+	if err := metrics.Timer.StartTimer("PlatformRuntime.Create"); err != nil {
+		return nil, err
+	}
+	c, err := rtime.Create(ctx, r.ContainerID, opts) // here launch a new shim instance
+	if err := metrics.Timer.FinishTimer("PlatformRuntime.Create"); err != nil {
+		return nil, err
+	}
 	if err != nil {
 		return nil, errdefs.ToGRPC(err)
 	}
@@ -313,6 +332,7 @@ func (l *local) TakeOver(ctx context.Context, r *api.TakeOverTaskRequest, _ ...g
 }
 
 func (l *local) Start(ctx context.Context, r *api.StartRequest, _ ...grpc.CallOption) (*api.StartResponse, error) {
+	defer metrics.Timer.Report()
 	t, err := l.getTask(ctx, r.ContainerID)
 	if err != nil {
 		return nil, err

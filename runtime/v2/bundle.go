@@ -43,6 +43,8 @@ func LoadBundle(ctx context.Context, root, id string) (*Bundle, error) {
 }
 
 // NewBundle returns a new bundle on disk
+// state directory will be used to store bundle (rootfs + config.json)
+// however after calling this method, the rootfs just be created but still empty
 func NewBundle(ctx context.Context, root, state, id string, spec []byte) (b *Bundle, err error) {
 	if err := identifiers.Validate(id); err != nil {
 		return nil, fmt.Errorf("invalid task id %s: %w", id, err)

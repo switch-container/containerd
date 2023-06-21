@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/containerd/containerd/metrics"
 	runc "github.com/containerd/go-runc"
 	google_protobuf "github.com/gogo/protobuf/types"
 	"github.com/sirupsen/logrus"
@@ -160,9 +161,15 @@ func (s *createdCheckpointState) Start(ctx context.Context) error {
 		defer socket.Close()
 		s.opts.ConsoleSocket = socket
 	}
-
+	if err := metrics.Timer.StartTimer("runc.Runc.Restore"); err != nil {
+		return err
+	}
+	// [200ms]
 	if _, err := s.p.runtime.Restore(ctx, p.id, p.Bundle, s.opts); err != nil {
 		return p.runtimeError(err, "OCI runtime restore failed")
+	}
+	if err := metrics.Timer.FinishTimer("runc.Runc.Restore"); err != nil {
+		return err
 	}
 	if sio.Stdin != "" {
 		if err := p.openStdin(sio.Stdin); err != nil {

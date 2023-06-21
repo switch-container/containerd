@@ -32,6 +32,7 @@ import (
 
 	"github.com/containerd/console"
 	"github.com/containerd/containerd/log"
+	"github.com/containerd/containerd/metrics"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/pkg/stdio"
 	"github.com/containerd/fifo"
@@ -145,8 +146,15 @@ func (p *Init) Create(ctx context.Context, r *CreateConfig) error {
 	if socket != nil {
 		opts.ConsoleSocket = socket
 	}
+	// [run: 120ms]
+	if err := metrics.Timer.StartTimer("runc.Runc.Create"); err != nil {
+		return err
+	}
 	if err := p.runtime.Create(ctx, r.ID, r.Bundle, opts); err != nil {
 		return p.runtimeError(err, "OCI runtime create failed")
+	}
+	if err := metrics.Timer.FinishTimer("runc.Runc.Create"); err != nil {
+		return err
 	}
 	if r.Stdin != "" {
 		if err := p.openStdin(r.Stdin); err != nil {

@@ -134,7 +134,8 @@ type CheckpointTaskOpts func(*CheckpointTaskInfo) error
 type TaskInfo struct {
 	// Checkpoint is the Descriptor for an existing checkpoint that can be used
 	// to restore a task's runtime and memory state
-	Checkpoint *types.Descriptor
+	Checkpoint     *types.Descriptor
+	CheckpointPath string
 	// RootFS is a list of mounts to use as the task's root filesystem
 	RootFS []mount.Mount
 	// Options hold runtime specific settings for task creation

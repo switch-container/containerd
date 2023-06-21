@@ -299,6 +299,9 @@ func (c *container) NewTask(ctx context.Context, ioCreate cio.Creator, opts ...N
 	if info.Checkpoint != nil {
 		request.Checkpoint = info.Checkpoint
 	}
+	if info.CheckpointPath != "" {
+		request.CheckpointPath = info.CheckpointPath
+	}
 	response, err := c.client.TaskService().Create(ctx, request)
 	if err != nil {
 		return nil, errdefs.FromGRPC(err)

@@ -29,6 +29,7 @@ import (
 	"github.com/containerd/containerd/events/exchange"
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/metadata"
+	"github.com/containerd/containerd/metrics"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/pkg/timeout"
 	"github.com/containerd/containerd/platforms"
@@ -365,7 +366,13 @@ func (m *TaskManager) ID() string {
 
 // Create launches new shim instance and creates new task
 func (m *TaskManager) Create(ctx context.Context, taskID string, opts runtime.CreateOpts) (runtime.Task, error) {
+	if err := metrics.Timer.StartTimer("shimManager.Start"); err != nil {
+		return nil, err
+	}
 	process, err := m.manager.Start(ctx, taskID, opts)
+	if err := metrics.Timer.FinishTimer("shimManager.Start"); err != nil {
+		return nil, err
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to start shim: %w", err)
 	}
@@ -373,7 +380,14 @@ func (m *TaskManager) Create(ctx context.Context, taskID string, opts runtime.Cr
 	// Cast to shim task and call task service to create a new container task instance.
 	// This will not be required once shim service / client implemented.
 	shim := process.(*shimTask)
+	// [run: 122ms] [restore: 1.8ms]
+	if err := metrics.Timer.StartTimer("shimTask.Create"); err != nil {
+		return nil, err
+	}
 	t, err := shim.Create(ctx, opts)
+	if err := metrics.Timer.FinishTimer("shimTask.Create"); err != nil {
+		return nil, err
+	}
 	if err != nil {
 		// NOTE: ctx contains required namespace information.
 		m.manager.shims.Delete(ctx, taskID)

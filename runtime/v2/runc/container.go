@@ -32,6 +32,7 @@ import (
 	cgroupsv2 "github.com/containerd/cgroups/v2"
 	"github.com/containerd/console"
 	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/metrics"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/pkg/process"
@@ -128,8 +129,15 @@ func NewContainer(ctx context.Context, platform stdio.Platform, r *task.CreateTa
 	if err != nil {
 		return nil, errdefs.ToGRPC(err)
 	}
+	// [run: 120ms] [restore: 20us]
+	if err := metrics.Timer.StartTimer("Init.Create"); err != nil {
+		return nil, err
+	}
 	if err := p.Create(ctx, config); err != nil {
 		return nil, errdefs.ToGRPC(err)
+	}
+	if err := metrics.Timer.FinishTimer("Init.Create"); err != nil {
+		return nil, err
 	}
 	container := &Container{
 		ID:              r.ID,
@@ -357,7 +365,13 @@ func (c *Container) Start(ctx context.Context, r *task.StartRequest) (process.Pr
 	if err != nil {
 		return nil, err
 	}
+	if err := metrics.Timer.StartTimer("process.Start"); err != nil {
+		return nil, err
+	}
 	if err := p.Start(ctx); err != nil {
+		return nil, err
+	}
+	if err := metrics.Timer.FinishTimer("process.Start"); err != nil {
 		return nil, err
 	}
 	if c.Cgroup() == nil && p.Pid() > 0 {
