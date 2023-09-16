@@ -86,8 +86,9 @@ func NewRunc(root, path, namespace, runtime, criu string, systemd bool) *runc.Ru
 		root = RuncRoot
 	}
 	return &runc.Runc{
-		Command:       runtime,
-		Log:           filepath.Join(path, "log.json"),
+		Command: runtime,
+		Log:     filepath.Join(path, "log.json"),
+		// Log:           filepath.Join("/root", "log.json"),
 		LogFormat:     runc.JSON,
 		PdeathSignal:  unix.SIGKILL,
 		Root:          filepath.Join(root, namespace),
@@ -127,9 +128,11 @@ func (p *Init) Create(ctx context.Context, r *CreateConfig) error {
 		}
 		defer socket.Close()
 	} else {
+		metrics.Timer.StartTimer("createIO")
 		if pio, err = createIO(ctx, p.id, p.IoUID, p.IoGID, p.stdio); err != nil {
 			return fmt.Errorf("failed to create init process I/O: %w", err)
 		}
+		metrics.Timer.FinishTimer("createIO")
 		p.io = pio
 	}
 	if r.Checkpoint != "" {
@@ -382,7 +385,9 @@ func (p *Init) Start(ctx context.Context) error {
 }
 
 func (p *Init) start(ctx context.Context) error {
+  metrics.Timer.StartTimer("p.runtime.Start")
 	err := p.runtime.Start(ctx, p.id)
+  metrics.Timer.FinishTimer("p.runtime.Start")
 	return p.runtimeError(err, "OCI runtime start failed")
 }
 

@@ -302,6 +302,15 @@ func (c *container) NewTask(ctx context.Context, ioCreate cio.Creator, opts ...N
 	if info.CheckpointPath != "" {
 		request.CheckpointPath = info.CheckpointPath
 	}
+	// an example of request.Rootfs:
+	// [&Mount{Type:overlay,Source:overlay,Target:,Options:[index=off workdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/106/work
+	// upperdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/106/fs
+	// lowerdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/105/fs:
+	// /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/98/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/9],
+	// XXX_unrecognized:[],}]
+	//
+	// which means it typically only contains an overlay rootfs
+	// fmt.Printf("TaskService() create request mount: %v", request.Rootfs)
 	response, err := c.client.TaskService().Create(ctx, request)
 	if err != nil {
 		return nil, errdefs.FromGRPC(err)
