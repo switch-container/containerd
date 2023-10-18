@@ -31,8 +31,12 @@ type TimeMetric struct {
 }
 
 var Timer *TimeMetric
+var enable bool = false
 
 func (timer *TimeMetric) StartTimer(name string) error {
+	if !enable {
+		return nil
+	}
 	if _, ok := timer.start[name]; ok {
 		return fmt.Errorf("duplicated timer %s", name)
 	}
@@ -41,6 +45,9 @@ func (timer *TimeMetric) StartTimer(name string) error {
 }
 
 func (timer *TimeMetric) FinishTimer(name string) error {
+	if !enable {
+		return nil
+	}
 	start, ok := timer.start[name]
 	if !ok {
 		return fmt.Errorf("%s timer does not start", name)
@@ -50,6 +57,9 @@ func (timer *TimeMetric) FinishTimer(name string) error {
 }
 
 func (timer *TimeMetric) Report() {
+	if !enable {
+		return
+	}
 	defer func() {
 		// clear all timer once report
 		timer.start = make(map[string]time.Time)
@@ -72,6 +82,9 @@ func (timer *TimeMetric) Report() {
 }
 
 func (timer *TimeMetric) Clean() {
+	if !enable {
+		return
+	}
 	timer.start = make(map[string]time.Time)
 	timer.elapsed = make(map[string]time.Duration)
 }
