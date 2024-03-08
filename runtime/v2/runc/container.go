@@ -235,6 +235,7 @@ func newInit(ctx context.Context, path, workDir, namespace string, platform stdi
 	p.NoPivotRoot = options.NoPivotRoot
 	p.NoNewKeyring = options.NoNewKeyring
 	p.CriuWorkPath = options.CriuWorkPath
+	p.CriuLazyPages = options.CriuLazyPages
 	if p.CriuWorkPath == "" {
 		// if criu work path not set, use container WorkDir
 		p.CriuWorkPath = p.WorkDir

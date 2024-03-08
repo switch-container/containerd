@@ -64,20 +64,21 @@ type Init struct {
 	io       *processIO
 	runtime  *runc.Runc
 	// pausing preserves the pausing state.
-	pausing      *atomicBool
-	switching    *atomicBool
-	status       int
-	exited       time.Time
-	pid          int
-	closers      []io.Closer
-	stdin        io.Closer
-	stdio        stdio.Stdio
-	Rootfs       string
-	IoUID        int
-	IoGID        int
-	NoPivotRoot  bool
-	NoNewKeyring bool
-	CriuWorkPath string
+	pausing       *atomicBool
+	switching     *atomicBool
+	status        int
+	exited        time.Time
+	pid           int
+	closers       []io.Closer
+	stdin         io.Closer
+	stdio         stdio.Stdio
+	Rootfs        string
+	IoUID         int
+	IoGID         int
+	NoPivotRoot   bool
+	NoNewKeyring  bool
+	CriuWorkPath  string
+	CriuLazyPages bool
 }
 
 // NewRunc returns a new runc instance for a process
@@ -315,6 +316,7 @@ func (p *Init) createCheckpointedState(r *CreateConfig, pidFile *pidFile) error 
 			ImagePath:  r.Checkpoint,
 			WorkDir:    p.CriuWorkPath,
 			ParentPath: r.ParentCheckpoint,
+			LazyPages:  p.CriuLazyPages,
 		},
 		PidFile:     pidFile.Path(),
 		NoPivot:     p.NoPivotRoot,
@@ -385,9 +387,9 @@ func (p *Init) Start(ctx context.Context) error {
 }
 
 func (p *Init) start(ctx context.Context) error {
-  metrics.Timer.StartTimer("p.runtime.Start")
+	metrics.Timer.StartTimer("p.runtime.Start")
 	err := p.runtime.Start(ctx, p.id)
-  metrics.Timer.FinishTimer("p.runtime.Start")
+	metrics.Timer.FinishTimer("p.runtime.Start")
 	return p.runtimeError(err, "OCI runtime start failed")
 }
 
